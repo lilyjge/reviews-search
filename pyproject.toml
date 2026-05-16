@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reviews-search"
+version = "0.1.0"
+description = "Scrape Google Maps reviews and search with QuackIR"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "duckdb==1.1.1",
+    "tqdm==4.66.5",
+    "pyserini==1.0.0",
+    "psycopg2-binary==2.9.10",
+    "python-dotenv==1.0.1",
+    "playwright==1.49.1",
+    "httpx==0.28.1",
+    "rich==13.9.4",
+]
+
+[project.scripts]
+reviews-search = "reviews_search.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["reviews_search*"]

@@ -1,0 +1,3 @@
+[submodule "vendor/quackir"]
+	path = vendor/quackir
+	url = https://github.com/castorini/quackir.git
