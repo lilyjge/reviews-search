@@ -4,6 +4,8 @@ Scrape Google Maps reviews for businesses in an area, store them in DuckDB, and 
 
 **Concrete use case:** find optometrists in Waterloo–Kitchener–Cambridge and pick one for **ortho‑k lenses** (the answer is at the bottom of this README — Dr. Sarah Fong).
 
+**Reusing this for a different task** (find a laptop repair shop, dentist, plumber, etc.) — see [`AGENTS.md`](AGENTS.md) for the recipe and known gotchas.
+
 ## Architecture
 
 ```
@@ -57,8 +59,12 @@ python -m reviews_search scrape-gosom \
   --depth 5 \
   --exit-on-inactivity 3m
 
-python -m reviews_search recommend "ortho k lenses" --top 10
+python -m reviews_search recommend "ortho k lenses" --top 10 \
+  --variant orthokeratology --variant orthok \
+  --variant "corneal reshaping" --variant "myopia control"
 ```
+
+The `recommend` command ranks **places** by how many of their reviews exactly mention your query or any `--variant` synonym (each match weighted 10× the BM25 score), then prints the supporting review snippets underneath each place. The query itself auto-expands its hyphenation variants (`ortho k` → also `ortho-k`, `orthok`); domain synonyms must be passed explicitly via `--variant`.
 
 `scrape-gosom` writes `data/gosom/queries.txt`, `data/gosom/results.json`, and `data/gosom/scrape.log`, then imports + indexes into `data/reviews.duckdb`. `--runner auto` (the default) picks the native binary if it can find it on `$PATH`, in `$GOBIN`, or under `~/go/bin`, otherwise falls back to Docker. Force one with `--runner binary` or `--runner docker`.
 

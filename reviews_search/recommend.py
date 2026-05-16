@@ -22,35 +22,33 @@ def _normalize(s: str) -> str:
     return re.sub(r"\s+", " ", s.lower()).strip()
 
 
-def _expand_variants(query: str) -> list[str]:
+def _expand_variants(query: str, extra: list[str] | None = None) -> list[str]:
     """
-    Generate substring variants to catch typos / hyphenation.
-    'ortho k lenses' -> ['ortho-k', 'ortho k', 'orthok', 'orthokeratology', 'corneal reshaping', ...]
-    Keeps the original tokens as a fallback.
+    Generate substring variants of a query to catch hyphenation / joined spelling.
+
+    Examples (auto):
+      'ortho k lenses'    -> {'ortho k lenses', 'ortho-k-lenses', 'orthoklenses'}
+      'keyboard repair'   -> {'keyboard repair', 'keyboard-repair', 'keyboardrepair'}
+
+    Domain synonyms (e.g. 'orthokeratology', 'corneal reshaping') are NOT inferred —
+    pass them via `extra` from the caller (typically the `--variant` CLI flag).
     """
     q = _normalize(query)
     variants = {q}
-
     tokens = q.split()
-    if "ortho" in q or "orthok" in q or "orthokeratology" in q:
-        variants.update(
-            {
-                "ortho-k",
-                "ortho k",
-                "orthok",
-                "orthokeratology",
-                "corneal reshaping",
-                "overnight lens",
-                "overnight lenses",
-                "myopia control",
-                "myopia management",
-                "misight",
-            }
-        )
-
     if len(tokens) >= 2:
         for sep in (" ", "-", ""):
             variants.add(sep.join(tokens))
+
+    for v in extra or []:
+        nv = _normalize(v)
+        if not nv:
+            continue
+        variants.add(nv)
+        et = nv.split()
+        if len(et) >= 2:
+            for sep in (" ", "-", ""):
+                variants.add(sep.join(et))
 
     return sorted({v for v in variants if v})
 
@@ -109,6 +107,7 @@ def recommend(
     db_path: Path,
     query: str,
     *,
+    variants: list[str] | None = None,
     top_places: int = 10,
     snippets_per_place: int = 3,
     bm25_top_n: int = 50,
@@ -136,8 +135,8 @@ def recommend(
     """
     conn = duckdb.connect(str(db_path), read_only=True)
 
-    variants = _expand_variants(query)
-    exact = _place_match_counts(conn, variants)
+    all_variants = _expand_variants(query, extra=variants)
+    exact = _place_match_counts(conn, all_variants)
 
     try:
         bm25 = search_reviews(db_path, query, top_n=bm25_top_n)
@@ -211,9 +210,9 @@ def recommend(
                 f"""
                 SELECT review_id, rating, published_date, reviewer_name, text
                 FROM {REVIEWS_TABLE}
-                WHERE place_id = ? AND ({" OR ".join(["lower(text) LIKE ?"] * len(variants))})
+                WHERE place_id = ? AND ({" OR ".join(["lower(text) LIKE ?"] * len(all_variants))})
                 """,
-                [pid, *[f"%{v}%" for v in variants]],
+                [pid, *[f"%{v}%" for v in all_variants]],
             ).fetchall()
             for review_id, r_rating, pub, reviewer, text in rows:
                 key = text[:120]
@@ -234,7 +233,7 @@ def recommend(
                     break
 
         for s in snippets:
-            s["snippet"] = _quoted_snippet(s["text"], variants)
+            s["snippet"] = _quoted_snippet(s["text"], all_variants)
 
         places.append(
             {
@@ -258,4 +257,4 @@ def recommend(
     places = places[:top_places]
 
     conn.close()
-    return {"query": query, "variants": variants, "places": places}
+    return {"query": query, "variants": all_variants, "places": places}

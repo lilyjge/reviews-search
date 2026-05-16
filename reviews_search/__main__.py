@@ -229,9 +229,14 @@ def cmd_recommend(args: argparse.Namespace) -> int:
         console.print(f"[red]No database at {settings.db_path}.[/red] Run scrape-gosom first.")
         return 1
 
+    extra_variants: list[str] = list(args.variant or [])
+    for csv in args.variants or []:
+        extra_variants.extend(v.strip() for v in csv.split(",") if v.strip())
+
     result = recommend(
         settings.db_path,
         args.query,
+        variants=extra_variants or None,
         top_places=args.top,
         snippets_per_place=args.snippets,
     )
@@ -413,6 +418,19 @@ def main(argv: list[str] | None = None) -> int:
     rec_p.add_argument("query", help='e.g. "ortho k lenses"')
     rec_p.add_argument("--top", type=int, default=10, help="Places to show")
     rec_p.add_argument("--snippets", type=int, default=3, help="Snippets per place")
+    rec_p.add_argument(
+        "--variant",
+        action="append",
+        default=[],
+        help='Additional synonym to match exactly (repeatable). '
+        'e.g. --variant orthokeratology --variant "corneal reshaping"',
+    )
+    rec_p.add_argument(
+        "--variants",
+        action="append",
+        default=[],
+        help="Comma-separated synonyms (alternative to repeating --variant).",
+    )
     rec_p.set_defaults(func=cmd_recommend)
 
     status_p = sub.add_parser("status", help="Show scrape statistics")
